@@ -1,5 +1,5 @@
 #include "DHT.h"
-#include "SparkFun_SGP30_Arduino_Library.h"
+#include "Adafruit_SGP30.h"
 #include <Wire.h>
 #include "MQ131.h"
 #include <SoftwareSerial.h> 
@@ -12,14 +12,13 @@ SoftwareSerial gpsSerial(4,5); //Digital Pin - 4 & 5 (Rx and Tx)
 
 float lat = 19.021624, lon = 72.870855; // Initial GPS Co-ordinates
 
-SGP30 mySensor; 
-long t1, t2;
+Adafruit_SGP30 sgp;
 
-int c = 0; //Initial CO2 concentration
-int h2 = 0; //Initial H2 concentration
-int voc = 0; //Inital VOC concentration
-int eth = 0; //Initial Ethanol concentration
-int o3 = 0; //Initial O3 concentration        
+float c = 0; //Initial CO2 concentration
+float h2 = 0; //Initial H2 concentration
+float voc = 0; //Inital VOC concentration
+float eth = 0; //Initial Ethanol concentration
+float o3 = 0; //Initial O3 concentration        
 
 int sensorValueMQ135;
 
@@ -44,31 +43,45 @@ int digitalValue;
 
 #define MQ135Pin A3 //Analog Pin - 3 (MQ135)
 
-#define MQ131Pin A4 //Digital Pin - 6 (MQ131)
+#define MQ131Pin 2 //Digital Pin - 2 (MQ131)
 
 DHT dht(DHTPIN, DHTTYPE);
 
 TinyGPSPlus gps;
 void setup() {
   Serial.begin(9600);
+  Serial1.begin(115200);  
   Wire.begin();
   Wire.setClock(400000);
-  if (mySensor.begin() == false) {
-    Serial.println("No SGP30 Detected. Check connections.");
-    while (1);
-  }
-  mySensor.initAirQuality();
-  t1 = millis();
   dht.begin();
-  MQ131.begin(MQ131Pin, A0, LOW_CONCENTRATION, 1000000);  //
-  MQ131.setTimeToRead(20);
-  MQ131.setR0(9000);
+  MQ131.begin(MQ131Pin, A1, LOW_CONCENTRATION, 1000000);  //
+  MQ131.calibrate();
   gpsSerial.begin(9600);
   pinMode(ledPower,OUTPUT);
+  Serial1.println("TVOC TEST");
+    if (!sgp.begin()) {  
+        Serial1.println("Sensor not found");
+        while (1);
+    }
+    Serial1.println("\nInitialization...");
 }
 
 void loop() {
-  delay(1000);
+  int counter = 0;
+  while(counter<=45){
+    if (!sgp.IAQmeasure()) {
+        Serial1.println("Measurement failed");
+    }
+  if (! sgp.IAQmeasureRaw()) {
+    Serial1.println("Raw Measurement failed");
+  }
+  voc = sgp.TVOC;
+  c = sgp.eCO2;
+  h2 = sgp.rawH2;
+  eth = sgp.rawEthanol;
+  counter++;
+  delay(500);
+  }
   float h = dht.readHumidity();
   float t = dht.readTemperature();
   digitalWrite(ledPower,LOW);
@@ -78,7 +91,7 @@ void loop() {
   digitalWrite(ledPower,HIGH);
   delayMicroseconds(sleepTime);       
   calcVoltage = voMeasured * (5.0 / 1024);
-  dustDensity = 0.17 * calcVoltage - 0.1;
+  dustDensity = 170 * calcVoltage - 0.1;
   if (dustDensity < 0) {
     dustDensity = 0.00;
   }
@@ -86,16 +99,7 @@ void loop() {
     Serial.println(F("Failed to read from DHT Sensor!"));
     return;
   }
-  t2 = millis();
-  if (t2 >= t1 + 1000) {
-    t1 = t2;
-    mySensor.measureAirQuality();
-    c = mySensor.CO2;
-    voc = mySensor.TVOC;
-    mySensor.measureRawSignals();
-    h2 = mySensor.H2;
-    eth = mySensor.ethanol;
-  }
+  MQ131.sample();
   o3 = MQ131.getO3(PPB);
   sensorValueMQ135 = analogRead(MQ135Pin);
   while(gpsSerial.available() > 0)
@@ -111,4 +115,5 @@ void loop() {
   }
   String StringToSend = String(h) + "," + String(t) + "," + String(c) + "," + String(dustDensity) + "," + String(voc) + "," + String(h2) + "," + String(eth) + "," + String(o3) + "," + String(sensorValueMQ135)+ "," + String(lat)+ "," + String(lon);
   Serial.println(StringToSend);
+  delay(1000);
 }
