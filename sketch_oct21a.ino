@@ -84,6 +84,9 @@ void loop() {
   }
   float h = dht.readHumidity();
   float t = dht.readTemperature();
+
+  int counter1 = 0;
+  while(counter1 <= 45){
   digitalWrite(ledPower,LOW);
   delayMicroseconds(280);
   voMeasured = analogRead(measurePin);
@@ -94,6 +97,9 @@ void loop() {
   dustDensity = 170 * calcVoltage - 0.1;
   if (dustDensity < 0) {
     dustDensity = 0.00;
+  }
+    counter1++;
+    delay(500);
   }
   if (isnan(h) || isnan(t)) {
     Serial.println(F("Failed to read from DHT Sensor!"));
