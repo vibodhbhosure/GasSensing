@@ -5,12 +5,12 @@
 #include <SoftwareSerial.h> 
 #include <TinyGPS++.h> 
 
-// int RXPin = 2; //Digital Pin - 2 (Rx)
-// int TXPin = 3; //Digital Pin - 3 (Tx)
 
-SoftwareSerial gpsSerial(4,5); //Digital Pin - 4 & 5 (Rx and Tx)
+//Connect Tx - 4 !Important   
+// SoftwareSerial gpsSerial(4,5); //Digital Pin - 4 & 5 (Rx and Tx)
 
-float lat = 19.021624, lon = 72.870855; // Initial GPS Co-ordinates
+float lat = 19.021624;
+float lon = 72.870855; // Initial GPS Co-ordinates
 
 Adafruit_SGP30 sgp;
 
@@ -48,32 +48,34 @@ int digitalValue;
 DHT dht(DHTPIN, DHTTYPE);
 
 TinyGPSPlus gps;
+
 void setup() {
   Serial.begin(9600);
-  Serial1.begin(115200);  
+  // Serial1.begin(115200);  
+  Serial1.begin(9600);
   Wire.begin();
   Wire.setClock(400000);
   dht.begin();
   MQ131.begin(MQ131Pin, A1, LOW_CONCENTRATION, 1000000);  //
   MQ131.calibrate();
-  gpsSerial.begin(9600);
+  // gpsSerial.begin(9600);
   pinMode(ledPower,OUTPUT);
-  Serial1.println("TVOC TEST");
+  // Serial1.println("TVOC TEST");
     if (!sgp.begin()) {  
         Serial1.println("Sensor not found");
         while (1);
     }
-    Serial1.println("\nInitialization...");
+    // Serial1.println("\nInitialization...");
 }
 
 void loop() {
   int counter = 0;
   while(counter<=45){
     if (!sgp.IAQmeasure()) {
-        Serial1.println("Measurement failed");
+        // Serial1.println("Measurement failed");
     }
   if (! sgp.IAQmeasureRaw()) {
-    Serial1.println("Raw Measurement failed");
+    // Serial1.println("Raw Measurement failed");
   }
   voc = sgp.TVOC;
   c = sgp.eCO2;
@@ -94,7 +96,7 @@ void loop() {
   digitalWrite(ledPower,HIGH);
   delayMicroseconds(sleepTime);       
   calcVoltage = voMeasured * (5.0 / 1024);
-  dustDensity = 170 * calcVoltage - 0.1;
+  dustDensity = 0.17 * calcVoltage - 0.1;
   if (dustDensity < 0) {
     dustDensity = 0.00;
   }
@@ -108,17 +110,22 @@ void loop() {
   MQ131.sample();
   o3 = MQ131.getO3(PPB);
   sensorValueMQ135 = analogRead(MQ135Pin);
-  while(gpsSerial.available() > 0)
-  {
-  if(gps.encode(gpsSerial.read())) 
-  {  
-    if (gps.location.isValid())
+
+  int counter2 = 0;
+  while(counter2<=45)
     {
+      if (Serial1.available() > 0)
+      {
+      gps.encode(Serial1.read());
+      if (gps.location.isUpdated())
+      { 
       lat = gps.location.lat();
       lon = gps.location.lng();
-    }
-  }
-  }
+      }
+      }
+      counter2++;
+      delay(500);
+    } 
   String StringToSend = String(h) + "," + String(t) + "," + String(c) + "," + String(dustDensity) + "," + String(voc) + "," + String(h2) + "," + String(eth) + "," + String(o3) + "," + String(sensorValueMQ135)+ "," + String(lat)+ "," + String(lon);
   Serial.println(StringToSend);
   delay(1000);
